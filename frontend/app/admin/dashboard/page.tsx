@@ -8,7 +8,7 @@ export default function Dashboard() {
   const [bookings, setBookings] = useState<any[]>([]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access_token");
 
     fetch(`${BASE_URL}/api/bookings`, {
       headers: {
