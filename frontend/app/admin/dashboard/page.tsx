@@ -25,9 +25,9 @@ export default function Dashboard() {
 
       <ul>
         {bookings.map((b) => (
-          <li key={b.id}>
-            {b.name} | {new Date(b.start_time).toLocaleString()} -{" "}
-            {new Date(b.end_time).toLocaleString()}
+          <li key={b.ID}>
+            {b.Name} | {new Date(b.StartTime).toLocaleString()} -{" "}
+            {new Date(b.EndTime).toLocaleString()}
           </li>
         ))}
       </ul>
