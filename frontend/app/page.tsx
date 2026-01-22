@@ -29,15 +29,21 @@ export default function BookingPage() {
     phone: "",
   });
 
-  // Generate time slots from 9 AM to 5 PM
   const timeSlots: TimeSlot[] = Array.from({ length: 9 }, (_, i) => {
-    const hour = i + 9; // 9 AM to 5 PM
+    const hour = i + 9;
     const time = `${hour.toString().padStart(2, "0")}:00`;
+
+    const isBooked = bookings.some((booking) => {
+      const start = booking.start_time.slice(0, 5);
+      const end = booking.end_time.slice(0, 5);
+      return time >= start && time < end;
+    });
+
     return {
       id: i,
-      time: time,
+      time,
       formattedTime: hour <= 12 ? `${hour}:00 AM` : `${hour - 12}:00 PM`,
-      isBooked: false,
+      isBooked,
     };
   });
 
@@ -58,15 +64,6 @@ export default function BookingPage() {
       })
       .catch(() => setBookings([]));
   }, [selectedDate]);
-
-  // Mark booked time slots
-  useEffect(() => {
-    timeSlots.forEach((slot) => {
-      slot.isBooked = bookings.some(
-        (booking) => booking.start_time.slice(0, 5) === slot.time
-      );
-    });
-  }, [bookings]);
 
   // Navigation functions
   const goToPreviousDay = () => {
