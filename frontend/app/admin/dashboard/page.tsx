@@ -15,12 +15,29 @@ interface Booking {
   Status: string;
 }
 
+interface AdminBookingForm {
+  name: string;
+  phone: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+}
+
 export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminForm, setAdminForm] = useState<AdminBookingForm>({
+    name: "",
+    phone: "",
+    date: new Date().toISOString().split("T")[0],
+    start_time: "09:00",
+    end_time: "10:00",
+  });
+  const [adminLoading, setAdminLoading] = useState(false);
   const router = useRouter();
 
   // Check authentication and fetch bookings
@@ -108,6 +125,81 @@ export default function Dashboard() {
     }
   };
 
+  // Admin functions
+  const handleOpenAdminModal = () => {
+    setAdminForm({
+      name: "",
+      phone: "",
+      date: new Date().toISOString().split("T")[0],
+      start_time: "09:00",
+      end_time: "10:00",
+    });
+    setShowAdminModal(true);
+  };
+
+  const handleAdminBooking = async () => {
+    if (!adminForm.name.trim() || !adminForm.phone.trim()) {
+      alert("Please fill in name and phone number");
+      return;
+    }
+
+    if (!adminForm.date || !adminForm.start_time || !adminForm.end_time) {
+      alert("Please select date and time range");
+      return;
+    }
+
+    setAdminLoading(true);
+
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        alert("Session expired. Please login again.");
+        router.push("/admin/login");
+        return;
+      }
+
+      const res = await fetch(`${BASE_URL}/booking`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(adminForm),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert("Admin booking created successfully!");
+        setShowAdminModal(false);
+
+        // Refresh bookings
+        fetchBookings(token);
+
+        // Reset admin form
+        setAdminForm({
+          name: "",
+          phone: "",
+          date: new Date().toISOString().split("T")[0],
+          start_time: "09:00",
+          end_time: "10:00",
+        });
+      } else {
+        alert(data.error || "Failed to create booking");
+      }
+    } catch (error) {
+      alert("Error creating booking");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // Generate time options for admin form
+  const timeOptions = Array.from({ length: 9 }, (_, i) => {
+    const hour = i + 9; // 9 AM to 5 PM
+    return `${hour.toString().padStart(2, "0")}:00`;
+  });
+
   // Filter bookings based on search, date, and status
   const filteredBookings = bookings.filter((booking) => {
     const matchesSearch =
@@ -157,8 +249,315 @@ export default function Dashboard() {
         maxWidth: "1200px",
         margin: "0 auto",
         fontFamily: "system-ui, -apple-system, sans-serif",
+        position: "relative",
       }}
     >
+      {/* Admin Booking Modal */}
+      {showAdminModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "30px",
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "25px",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "1.8rem", color: "#333" }}>
+                📋 Create New Booking
+              </h2>
+              <button
+                onClick={() => setShowAdminModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  color: "#666",
+                  padding: "5px",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: "20px" }}>
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#333",
+                    fontWeight: "600",
+                  }}
+                >
+                  Client Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter client name"
+                  value={adminForm.name}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, name: e.target.value })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "12px 15px",
+                    fontSize: "1rem",
+                    border: "2px solid #e9ecef",
+                    borderRadius: "8px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#333",
+                    fontWeight: "600",
+                  }}
+                >
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Enter phone number"
+                  value={adminForm.phone}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, phone: e.target.value })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "12px 15px",
+                    fontSize: "1rem",
+                    border: "2px solid #e9ecef",
+                    borderRadius: "8px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#333",
+                    fontWeight: "600",
+                  }}
+                >
+                  Booking Date *
+                </label>
+                <input
+                  type="date"
+                  value={adminForm.date}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, date: e.target.value })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "12px 15px",
+                    fontSize: "1rem",
+                    border: "2px solid #e9ecef",
+                    borderRadius: "8px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "15px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "8px",
+                      color: "#333",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Start Time *
+                  </label>
+                  <select
+                    value={adminForm.start_time}
+                    onChange={(e) =>
+                      setAdminForm({ ...adminForm, start_time: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "12px 15px",
+                      fontSize: "1rem",
+                      border: "2px solid #e9ecef",
+                      borderRadius: "8px",
+                      backgroundColor: "white",
+                    }}
+                  >
+                    {timeOptions.map((time) => (
+                      <option key={time} value={time}>
+                        {parseInt(time.split(":")[0]) <= 12
+                          ? `${time} AM`
+                          : `${parseInt(time.split(":")[0]) - 12}:00 PM`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "8px",
+                      color: "#333",
+                      fontWeight: "600",
+                    }}
+                  >
+                    End Time *
+                  </label>
+                  <select
+                    value={adminForm.end_time}
+                    onChange={(e) =>
+                      setAdminForm({ ...adminForm, end_time: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "12px 15px",
+                      fontSize: "1rem",
+                      border: "2px solid #e9ecef",
+                      borderRadius: "8px",
+                      backgroundColor: "white",
+                    }}
+                  >
+                    {timeOptions.map((time, index) => {
+                      const hour = parseInt(time.split(":")[0]);
+                      const startHour = parseInt(
+                        adminForm.start_time.split(":")[0]
+                      );
+                      if (hour > startHour) {
+                        return (
+                          <option key={time} value={time}>
+                            {hour <= 12 ? `${time} AM` : `${hour - 12}:00 PM`}
+                          </option>
+                        );
+                      }
+                      return null;
+                    })}
+                    {/* Add one more hour option after 5 PM for end time */}
+                    <option value="18:00">6:00 PM</option>
+                  </select>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: "#e7f1ff",
+                  padding: "15px",
+                  borderRadius: "8px",
+                  marginTop: "10px",
+                }}
+              >
+                <div style={{ color: "#0056b3", fontSize: "0.9rem" }}>
+                  <strong>Time Range:</strong> {adminForm.start_time} -{" "}
+                  {adminForm.end_time}
+                  <br />
+                  <small>Service hours: 09:00 - 17:00 WIB</small>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "15px",
+                marginTop: "30px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => setShowAdminModal(false)}
+                disabled={adminLoading}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  opacity: adminLoading ? 0.7 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdminBooking}
+                disabled={adminLoading}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: adminLoading ? "not-allowed" : "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  opacity: adminLoading ? 0.7 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                {adminLoading ? (
+                  <>
+                    <span>⏳</span>
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <span>✓</span>
+                    Create Booking
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div
         style={{
@@ -190,7 +589,34 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+          <button
+            onClick={handleOpenAdminModal}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: "#28a745",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontSize: "1rem",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "background-color 0.2s ease",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "#218838")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "#28a745")
+            }
+          >
+            <span>➕</span>
+            New Booking
+          </button>
+
           <div
             style={{
               backgroundColor: "#f8f9fa",
@@ -246,6 +672,60 @@ export default function Dashboard() {
           marginBottom: "30px",
         }}
       >
+        <div
+          style={{
+            backgroundColor: "white",
+            padding: "20px",
+            borderRadius: "10px",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>📅</div>
+          <div
+            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#28a745" }}
+          >
+            {statusCounts.confirmed || 0}
+          </div>
+          <div style={{ color: "#666" }}>Confirmed</div>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: "white",
+            padding: "20px",
+            borderRadius: "10px",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>⏳</div>
+          <div
+            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#ffc107" }}
+          >
+            {statusCounts.pending || 0}
+          </div>
+          <div style={{ color: "#666" }}>Pending</div>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: "white",
+            padding: "20px",
+            borderRadius: "10x",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>❌</div>
+          <div
+            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#dc3545" }}
+          >
+            {statusCounts.cancelled || 0}
+          </div>
+          <div style={{ color: "#666" }}>Cancelled</div>
+        </div>
+
         <div
           style={{
             backgroundColor: "white",
@@ -389,7 +869,7 @@ export default function Dashboard() {
           <h3 style={{ margin: 0, color: "#333" }}>
             Bookings ({filteredBookings.length})
           </h3>
-          {filteredBookings.length > 0 && (
+          <div style={{ display: "flex", gap: "10px" }}>
             <button
               onClick={() =>
                 fetchBookings(localStorage.getItem("access_token") || "")
@@ -403,11 +883,15 @@ export default function Dashboard() {
                 cursor: "pointer",
                 fontSize: "0.9rem",
                 fontWeight: "600",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
               }}
             >
-              ↻ Refresh
+              <span>↻</span>
+              Refresh
             </button>
-          )}
+          </div>
         </div>
 
         {isLoading ? (
