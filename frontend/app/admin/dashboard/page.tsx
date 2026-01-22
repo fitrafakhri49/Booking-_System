@@ -395,6 +395,41 @@ export default function Dashboard() {
         router.push("/admin/login");
         return;
       }
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
+
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
+
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
+
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
 
       const startHour = parseInt(adminForm.start_time.split(":")[0]);
       const endHour = parseInt(adminForm.end_time.split(":")[0]);
@@ -1371,9 +1406,19 @@ export default function Dashboard() {
                   </label>
                   <select
                     value={adminForm.start_time}
-                    onChange={(e) =>
-                      setAdminForm({ ...adminForm, start_time: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      const startHour = parseInt(newStart.split(":")[0]);
+                      const newEnd = `${(startHour + 1)
+                        .toString()
+                        .padStart(2, "0")}:00`;
+
+                      setAdminForm({
+                        ...adminForm,
+                        start_time: newStart,
+                        end_time: newEnd,
+                      });
+                    }}
                     style={{
                       width: "100%",
                       padding: "12px 15px",
