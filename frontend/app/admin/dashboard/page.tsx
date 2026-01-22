@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -23,6 +25,18 @@ interface AdminBookingForm {
   end_time: string;
 }
 
+interface BookingConfirmation {
+  name: string;
+  phone: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  bookingId?: string;
+  bookingTime: string;
+  status: string;
+  duration: number;
+}
+
 export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +45,7 @@ export default function Dashboard() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [adminForm, setAdminForm] = useState<AdminBookingForm>({
     name: "",
     phone: "",
@@ -41,6 +56,9 @@ export default function Dashboard() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [confirmationData, setConfirmationData] =
+    useState<BookingConfirmation | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const router = useRouter();
 
@@ -94,11 +112,14 @@ export default function Dashboard() {
       day: "numeric",
     });
   };
-
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString("en-US", {
-      hour: "2-digit",
+  const formatTime = (timeStr: string) => {
+    const date = new Date(
+      `1970-01-01T${timeStr.length === 5 ? timeStr : timeStr.slice(11, 16)}`
+    );
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
       minute: "2-digit",
+      hour12: true,
     });
   };
 
@@ -127,6 +148,207 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error deleting booking:", error);
     }
+  };
+
+  // PDF Generation Functions
+  const generatePDF = () => {
+    if (!confirmationData) return;
+
+    setIsPrinting(true);
+
+    // Create a temporary div to render the PDF content
+    const pdfContent = document.createElement("div");
+    pdfContent.style.position = "absolute";
+    pdfContent.style.left = "-9999px";
+    pdfContent.style.width = "800px";
+    pdfContent.style.padding = "40px";
+    pdfContent.style.backgroundColor = "white";
+    pdfContent.style.fontFamily = "Arial, sans-serif";
+
+    // Calculate duration
+    const startHour = parseInt(confirmationData.start_time.split(":")[0]);
+    const endHour = parseInt(confirmationData.end_time.split(":")[0]);
+    const duration = endHour - startHour;
+
+    // Format time
+    const formatTime = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+    };
+
+    // Format date
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    pdfContent.innerHTML = `
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #0070f3; margin: 0; font-size: 32px;">Service Booking ${
+          confirmationData.status === "UPDATED" ? "Update" : "Confirmation"
+        }</h1>
+        <p style="color: #666; margin-top: 10px;">${
+          confirmationData.status === "UPDATED"
+            ? "Updated Booking"
+            : "New Booking"
+        }</p>
+      </div>
+      
+      <div style="background: linear-gradient(135deg, ${
+        confirmationData.status === "UPDATED" ? "#4CAF50" : "#667eea"
+      } 0%, ${
+      confirmationData.status === "UPDATED" ? "#45a049" : "#764ba2"
+    } 100%); padding: 30px; border-radius: 15px; margin-bottom: 30px; color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h2 style="margin: 0; font-size: 24px;">${
+              confirmationData.name
+            }</h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">${
+              confirmationData.phone
+            }</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 10px; text-align: center;">
+            <div style="font-size: 14px; opacity: 0.9;">Status</div>
+            <div style="font-size: 18px; font-weight: bold;">${
+              confirmationData.status
+            }</div>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 20px;">
+          <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px;">
+            <div style="font-size: 14px; opacity: 0.9;">Service Date</div>
+            <div style="font-size: 20px; font-weight: bold;">${formatDate(
+              confirmationData.date
+            )}</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px;">
+            <div style="font-size: 14px; opacity: 0.9;">Service Time</div>
+            <div style="font-size: 20px; font-weight: bold;">${formatTime(
+              confirmationData.start_time
+            )} - ${formatTime(confirmationData.end_time)}</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 25px; border-radius: 10px; margin-bottom: 30px;">
+        <h3 style="color: #333; margin-top: 0; margin-bottom: 15px;">Booking Details</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+          <div>
+            <strong style="color: #666;">Booking Date:</strong>
+            <div>${formatDate(confirmationData.date)}</div>
+          </div>
+          <div>
+            <strong style="color: #666;">Booking Time:</strong>
+            <div>${confirmationData.bookingTime}</div>
+          </div>
+          <div>
+            <strong style="color: #666;">Service Duration:</strong>
+            <div>${duration} hour${duration > 1 ? "s" : ""}</div>
+          </div>
+          <div>
+            <strong style="color: #666;">Reference ID:</strong>
+            <div>${confirmationData.bookingId || "N/A"}</div>
+          </div>
+          <div>
+            <strong style="color: #666;">Action:</strong>
+            <div>${
+              confirmationData.status === "UPDATED"
+                ? "Booking Updated"
+                : "Booking Created"
+            }</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="border: 2px dashed #e9ecef; padding: 25px; border-radius: 10px; margin-bottom: 30px;">
+        <h3 style="color: #333; margin-top: 0; margin-bottom: 15px;">Service Information</h3>
+        <ul style="margin: 0; padding-left: 20px; color: #555;">
+          <li>Please arrive 10 minutes before your scheduled time</li>
+          <li>Bring this confirmation with you</li>
+          <li>Contact us if you need to reschedule</li>
+          <li>Cancellations must be made 24 hours in advance</li>
+          ${
+            confirmationData.status === "UPDATED"
+              ? "<li><strong>Note:</strong> This is an updated booking confirmation</li>"
+              : ""
+          }
+        </ul>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 14px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+        <p>This is an automated booking ${
+          confirmationData.status === "UPDATED" ? "update" : "confirmation"
+        }. Please contact us for any changes.</p>
+        <p>Thank you for choosing our service!</p>
+      </div>
+    `;
+
+    document.body.appendChild(pdfContent);
+
+    // Generate PDF
+    setTimeout(() => {
+      html2canvas(pdfContent, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      })
+        .then((canvas) => {
+          const imgData = canvas.toDataURL("image/png");
+          const pdf = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: "a4",
+          });
+
+          const imgWidth = 190;
+          const pageHeight = pdf.internal.pageSize.getHeight();
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          let heightLeft = imgHeight;
+          let position = 10;
+
+          pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+
+          while (heightLeft >= 0) {
+            position = heightLeft - imgHeight + 10;
+            pdf.addPage();
+            pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+          }
+
+          const action =
+            confirmationData.status === "UPDATED" ? "Update" : "Confirmation";
+          pdf.save(
+            `Booking-${action}-${confirmationData.name.replace(/\s+/g, "-")}-${
+              confirmationData.date
+            }.pdf`
+          );
+
+          // Clean up
+          document.body.removeChild(pdfContent);
+          setIsPrinting(false);
+        })
+        .catch((error) => {
+          console.error("Error generating PDF:", error);
+          alert("Failed to generate PDF. Please try again.");
+          document.body.removeChild(pdfContent);
+          setIsPrinting(false);
+        });
+    }, 500);
+  };
+
+  const showConfirmation = (data: BookingConfirmation) => {
+    setConfirmationData(data);
+    setShowConfirmationModal(true);
   };
 
   // Admin functions
@@ -209,6 +431,15 @@ export default function Dashboard() {
         return;
       }
 
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
+
       const res = await fetch(`${BASE_URL}/booking`, {
         method: "POST",
         headers: {
@@ -221,7 +452,17 @@ export default function Dashboard() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Booking created successfully!");
+        // Show confirmation modal
+        const duration = endHour - startHour;
+        const confirmation: BookingConfirmation = {
+          ...adminForm,
+          bookingId: data.id || Date.now().toString(),
+          bookingTime: new Date().toLocaleString(),
+          status: "CONFIRMED",
+          duration: duration,
+        };
+
+        showConfirmation(confirmation);
         setShowAdminModal(false);
 
         // Refresh bookings
@@ -297,7 +538,17 @@ export default function Dashboard() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Booking updated successfully!");
+        // Show confirmation modal for update
+        const duration = endHour - startHour;
+        const confirmation: BookingConfirmation = {
+          ...adminForm,
+          bookingId: editingBooking.ID,
+          bookingTime: new Date().toLocaleString(),
+          status: "UPDATED",
+          duration: duration,
+        };
+
+        showConfirmation(confirmation);
         setShowEditModal(false);
         setEditingBooking(null);
         fetchBookings(token);
@@ -369,6 +620,296 @@ export default function Dashboard() {
         position: "relative",
       }}
     >
+      {/* Booking Confirmation Modal */}
+      {showConfirmationModal && confirmationData && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "30px",
+              width: "100%",
+              maxWidth: "600px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "25px",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "1.8rem", color: "#333" }}>
+                {confirmationData.status === "UPDATED" ? "✏️" : "🎉"}{" "}
+                {confirmationData.status === "UPDATED"
+                  ? "Booking Updated!"
+                  : "Booking Confirmed!"}
+              </h2>
+              <button
+                onClick={() => setShowConfirmationModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  color: "#666",
+                  padding: "5px",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                background: `linear-gradient(135deg, ${
+                  confirmationData.status === "UPDATED" ? "#4CAF50" : "#667eea"
+                } 0%, ${
+                  confirmationData.status === "UPDATED" ? "#45a049" : "#764ba2"
+                } 100%)`,
+                padding: "25px",
+                borderRadius: "10px",
+                color: "white",
+                marginBottom: "25px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "15px",
+                }}
+              >
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.5rem" }}>
+                    {confirmationData.name}
+                  </h3>
+                  <p style={{ margin: "5px 0 0 0", opacity: 0.9 }}>
+                    {confirmationData.phone}
+                  </p>
+                </div>
+                <div
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                    padding: "8px 16px",
+                    borderRadius: "20px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {confirmationData.status}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "15px",
+                  marginTop: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    padding: "15px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+                    Service Date
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {formatDate(confirmationData.date)}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    padding: "15px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+                    Service Time
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {formatTime(confirmationData.start_time)} -{" "}
+                    {formatTime(confirmationData.end_time)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "#f8f9fa",
+                padding: "20px",
+                borderRadius: "10px",
+                marginBottom: "25px",
+              }}
+            >
+              <h4 style={{ marginTop: 0, color: "#333", marginBottom: "15px" }}>
+                Booking Summary
+              </h4>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "15px",
+                }}
+              >
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Duration
+                  </div>
+                  <div style={{ fontWeight: "600" }}>
+                    {confirmationData.duration} hour
+                    {confirmationData.duration > 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    {confirmationData.status === "UPDATED"
+                      ? "Updated On"
+                      : "Booked On"}
+                  </div>
+                  <div style={{ fontWeight: "600" }}>
+                    {confirmationData.bookingTime}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Reference ID
+                  </div>
+                  <div style={{ fontWeight: "600", fontFamily: "monospace" }}>
+                    {confirmationData.bookingId || "N/A"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Action
+                  </div>
+                  <div style={{ fontWeight: "600" }}>
+                    {confirmationData.status === "UPDATED"
+                      ? "Booking Updated"
+                      : "Booking Created"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "2px dashed #e9ecef",
+                padding: "20px",
+                borderRadius: "10px",
+                marginBottom: "30px",
+              }}
+            >
+              <h4 style={{ marginTop: 0, color: "#333", marginBottom: "10px" }}>
+                Important Notes
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: "20px", color: "#555" }}>
+                <li>Please arrive 10 minutes before your scheduled time</li>
+                <li>Bring your confirmation with you</li>
+                <li>Contact us if you need to reschedule</li>
+                <li>Cancellations must be made 24 hours in advance</li>
+                {confirmationData.status === "UPDATED" && (
+                  <li>
+                    <strong>Note:</strong> This is an updated booking
+                    confirmation
+                  </li>
+                )}
+              </ul>
+            </div>
+
+            <div
+              style={{ display: "flex", gap: "15px", justifyContent: "center" }}
+            >
+              <button
+                onClick={() => setShowConfirmationModal(false)}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                }}
+              >
+                Close
+              </button>
+              <button
+                onClick={generatePDF}
+                disabled={isPrinting}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor:
+                    confirmationData.status === "UPDATED"
+                      ? "#28a745"
+                      : "#dc3545",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: isPrinting ? "not-allowed" : "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: isPrinting ? 0.7 : 1,
+                }}
+              >
+                {isPrinting ? (
+                  <>
+                    <span>⏳</span>
+                    Generating PDF...
+                  </>
+                ) : (
+                  <>
+                    <span>🖨️</span>
+                    Download PDF
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Admin Create Booking Modal */}
       {showAdminModal && (
         <div
@@ -865,9 +1406,19 @@ export default function Dashboard() {
                   </label>
                   <select
                     value={adminForm.start_time}
-                    onChange={(e) =>
-                      setAdminForm({ ...adminForm, start_time: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      const startHour = parseInt(newStart.split(":")[0]);
+                      const newEnd = `${(startHour + 1)
+                        .toString()
+                        .padStart(2, "0")}:00`;
+
+                      setAdminForm({
+                        ...adminForm,
+                        start_time: newStart,
+                        end_time: newEnd,
+                      });
+                    }}
                     style={{
                       width: "100%",
                       padding: "12px 15px",
