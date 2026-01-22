@@ -20,8 +20,10 @@ func RegisterRoutes(r *gin.Engine) {
 	r.GET("/bookings", controllers.GetBookedTimes)
 
 	// Protected routes
-	protected := r.Group("/api")
+	protected := r.Group("/admin")
 	protected.Use(middleware.SupabaseAuth())
+	protected.PATCH("/booking/:id", controllers.UpdateBooking)
+	protected.DELETE("/booking/:id", controllers.DeleteBooking)
 	protected.GET("/dashboard", controllers.Dashboard)
 	protected.GET("/bookings", controllers.GetBookingsAdmin)
 }

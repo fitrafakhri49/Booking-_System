@@ -26,7 +26,7 @@ func main() {
 			"http://localhost:3000", // Next.js
 		},
 		AllowMethods: []string{
-			"GET", "POST", "PUT", "DELETE", "OPTIONS",
+			"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH",
 		},
 		AllowHeaders: []string{
 			"Origin", "Content-Type", "Authorization",

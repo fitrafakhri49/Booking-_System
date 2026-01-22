@@ -55,7 +55,7 @@ export default function Dashboard() {
   const fetchBookings = async (token: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${BASE_URL}/api/bookings`, {
+      const response = await fetch(`${BASE_URL}/admin/bookings`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
