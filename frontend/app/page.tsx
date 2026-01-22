@@ -456,64 +456,6 @@ export default function BookingPage() {
           Confirm Booking
         </button>
       </div>
-
-      {/* Booked Times List */}
-      <div
-        style={{
-          backgroundColor: "white",
-          padding: "30px",
-          borderRadius: "10px",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h3 style={{ marginTop: 0, marginBottom: "20px", color: "#333" }}>
-          Bookings for {selectedDate.toLocaleDateString()}
-        </h3>
-
-        {bookings.length === 0 ? (
-          <p style={{ color: "#666", textAlign: "center", padding: "20px" }}>
-            No bookings for this date
-          </p>
-        ) : (
-          <ul
-            style={{
-              listStyle: "none",
-              padding: 0,
-              display: "grid",
-              gap: "10px",
-            }}
-          >
-            {bookings.map((booking, index) => (
-              <li
-                key={booking.id || index}
-                style={{
-                  padding: "15px",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: "8px",
-                  borderLeft: "4px solid #0070f3",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <strong style={{ fontSize: "1.1rem" }}>
-                      {booking.start_time} - {booking.end_time}
-                    </strong>
-                    <div style={{ color: "#666", marginTop: "5px" }}>
-                      {booking.name} • {booking.phone}
-                    </div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </main>
   );
 }
