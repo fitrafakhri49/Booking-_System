@@ -65,7 +65,7 @@ func CreateBooking(c *gin.Context) {
 		return
 	}
 
-	// 🔥 CONVERT KE UTC SEBELUM DB
+	// CONVERT KE UTC SEBELUM DB
 	startUTC := startWIB.UTC()
 	endUTC := endWIB.UTC()
 
@@ -160,4 +160,108 @@ func GetBookedTimes(c *gin.Context) {
 	}
 
 	c.JSON(200, result)
+}
+
+func UpdateBooking(c *gin.Context) {
+	id := c.Param("id")
+
+	var input struct {
+		Name      string `json:"name"`
+		Phone     string `json:"phone"`
+		Date      string `json:"date"`
+		StartTime string `json:"start_time"`
+		EndTime   string `json:"end_time"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Input tidak valid"})
+		return
+	}
+
+	var booking models.Booking
+	if err := config.DB.First(&booking, "id = ?", id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "Booking tidak ditemukan"})
+		return
+	}
+
+	// Default pakai data lama
+	startWIB := booking.StartTime.In(WIB)
+	endWIB := booking.EndTime.In(WIB)
+
+	// Jika date / time diupdate
+	if input.Date != "" && input.StartTime != "" && input.EndTime != "" {
+		date, err := time.ParseInLocation("2006-01-02", input.Date, WIB)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Format tanggal salah"})
+			return
+		}
+
+		startClock, _ := time.ParseInLocation("15:04", input.StartTime, WIB)
+		endClock, _ := time.ParseInLocation("15:04", input.EndTime, WIB)
+
+		startWIB = time.Date(
+			date.Year(), date.Month(), date.Day(),
+			startClock.Hour(), startClock.Minute(), 0, 0, WIB,
+		)
+
+		endWIB = time.Date(
+			date.Year(), date.Month(), date.Day(),
+			endClock.Hour(), endClock.Minute(), 0, 0, WIB,
+		)
+
+		if !endWIB.After(startWIB) {
+			c.JSON(400, gin.H{"error": "end_time harus setelah start_time"})
+			return
+		}
+
+		openTime := time.Date(date.Year(), date.Month(), date.Day(), 9, 0, 0, 0, WIB)
+		closeTime := time.Date(date.Year(), date.Month(), date.Day(), 17, 0, 0, 0, WIB)
+
+		if startWIB.Before(openTime) || endWIB.After(closeTime) {
+			c.JSON(400, gin.H{"error": "Booking hanya tersedia 09:00 - 17:00 WIB"})
+			return
+		}
+
+		startUTC := startWIB.UTC()
+		endUTC := endWIB.UTC()
+
+		var count int64
+		config.DB.
+			Model(&models.Booking{}).
+			Where("id <> ? AND start_time < ? AND end_time > ?", booking.ID, endUTC, startUTC).
+			Count(&count)
+
+		if count > 0 {
+			c.JSON(409, gin.H{"error": "Waktu sudah dibooking"})
+			return
+		}
+
+		booking.StartTime = startUTC
+		booking.EndTime = endUTC
+	}
+
+	if input.Name != "" {
+		booking.Name = input.Name
+	}
+	if input.Phone != "" {
+		booking.Phone = input.Phone
+	}
+
+	config.DB.Save(&booking)
+
+	c.JSON(200, gin.H{"message": "Booking berhasil diupdate"})
+}
+
+func DeleteBooking(c *gin.Context) {
+	id := c.Param("id")
+
+	var booking models.Booking
+	if err := config.DB.First(&booking, "id = ?", id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "Booking tidak ditemukan"})
+		return
+	}
+
+	config.DB.Delete(&booking)
+
+	c.JSON(200, gin.H{"message": "Booking berhasil dihapus"})
 }
