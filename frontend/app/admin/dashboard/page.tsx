@@ -173,6 +173,14 @@ export default function Dashboard() {
         router.push("/admin/login");
         return;
       }
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
 
       const startHour = parseInt(adminForm.start_time.split(":")[0]);
       const endHour = parseInt(adminForm.end_time.split(":")[0]);
