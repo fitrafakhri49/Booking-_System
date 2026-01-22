@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [adminForm, setAdminForm] = useState<AdminBookingForm>({
     name: "",
     phone: "",
@@ -38,6 +39,9 @@ export default function Dashboard() {
     end_time: "10:00",
   });
   const [adminLoading, setAdminLoading] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
   const router = useRouter();
 
   // Check authentication and fetch bookings
@@ -107,7 +111,7 @@ export default function Dashboard() {
     if (!token) return;
 
     try {
-      const response = await fetch(`${BASE_URL}/api/bookings/${bookingId}`, {
+      const response = await fetch(`${BASE_URL}/admin/booking/${bookingId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -135,6 +139,18 @@ export default function Dashboard() {
       end_time: "10:00",
     });
     setShowAdminModal(true);
+  };
+
+  const handleOpenEditModal = (booking: Booking) => {
+    setEditingBooking(booking);
+    setAdminForm({
+      name: booking.Name,
+      phone: booking.Phone,
+      date: booking.StartTime.split("T")[0],
+      start_time: booking.StartTime.slice(11, 16),
+      end_time: booking.EndTime.slice(11, 16),
+    });
+    setShowEditModal(true);
   };
 
   const handleAdminBooking = async () => {
@@ -166,6 +182,15 @@ export default function Dashboard() {
         return;
       }
 
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
+
       const res = await fetch(`${BASE_URL}/booking`, {
         method: "POST",
         headers: {
@@ -178,7 +203,7 @@ export default function Dashboard() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Admin booking created successfully!");
+        alert("Booking created successfully!");
         setShowAdminModal(false);
 
         // Refresh bookings
@@ -199,6 +224,72 @@ export default function Dashboard() {
       alert("Error creating booking");
     } finally {
       setAdminLoading(false);
+    }
+  };
+
+  const handleUpdateBooking = async () => {
+    if (!editingBooking) return;
+
+    if (!adminForm.name.trim() || !adminForm.phone.trim()) {
+      alert("Please fill in name and phone number");
+      return;
+    }
+
+    if (!adminForm.date || !adminForm.start_time || !adminForm.end_time) {
+      alert("Please select date and time range");
+      return;
+    }
+
+    const startHour = parseInt(adminForm.start_time.split(":")[0]);
+    const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+    if (endHour <= startHour) {
+      alert("End time harus setelah start time");
+      return;
+    }
+
+    setEditLoading(true);
+
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        alert("Session expired. Please login again.");
+        router.push("/admin/login");
+        return;
+      }
+
+      const res = await fetch(
+        `${BASE_URL}/admin/booking/${editingBooking.ID}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: adminForm.name,
+            phone: adminForm.phone,
+            date: adminForm.date,
+            start_time: adminForm.start_time,
+            end_time: adminForm.end_time,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert("Booking updated successfully!");
+        setShowEditModal(false);
+        setEditingBooking(null);
+        fetchBookings(token);
+      } else {
+        alert(data.error || "Failed to update booking");
+      }
+    } catch (err) {
+      alert("Error updating booking");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -260,7 +351,7 @@ export default function Dashboard() {
         position: "relative",
       }}
     >
-      {/* Admin Booking Modal */}
+      {/* Admin Create Booking Modal */}
       {showAdminModal && (
         <div
           style={{
@@ -568,6 +659,333 @@ export default function Dashboard() {
                   <>
                     <span>✓</span>
                     Create Booking
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Booking Modal */}
+      {showEditModal && editingBooking && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "30px",
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "25px",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "1.8rem", color: "#333" }}>
+                ✏️ Edit Booking
+              </h2>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingBooking(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  color: "#666",
+                  padding: "5px",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: "20px" }}>
+              <div
+                style={{
+                  backgroundColor: "#f8f9fa",
+                  padding: "15px",
+                  borderRadius: "8px",
+                  marginBottom: "10px",
+                }}
+              >
+                <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                  <strong>Booking ID:</strong> {editingBooking.ID}
+                  <br />
+                  <strong>Current Status:</strong> {editingBooking.Status}
+                </div>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#333",
+                    fontWeight: "600",
+                  }}
+                >
+                  Client Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter client name"
+                  value={adminForm.name}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, name: e.target.value })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "12px 15px",
+                    fontSize: "1rem",
+                    border: "2px solid #e9ecef",
+                    borderRadius: "8px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#333",
+                    fontWeight: "600",
+                  }}
+                >
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Enter phone number"
+                  value={adminForm.phone}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, phone: e.target.value })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "12px 15px",
+                    fontSize: "1rem",
+                    border: "2px solid #e9ecef",
+                    borderRadius: "8px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#333",
+                    fontWeight: "600",
+                  }}
+                >
+                  Booking Date *
+                </label>
+                <input
+                  type="date"
+                  value={adminForm.date}
+                  onChange={(e) =>
+                    setAdminForm({ ...adminForm, date: e.target.value })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "12px 15px",
+                    fontSize: "1rem",
+                    border: "2px solid #e9ecef",
+                    borderRadius: "8px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "15px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "8px",
+                      color: "#333",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Start Time *
+                  </label>
+                  <select
+                    value={adminForm.start_time}
+                    onChange={(e) =>
+                      setAdminForm({ ...adminForm, start_time: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "12px 15px",
+                      fontSize: "1rem",
+                      border: "2px solid #e9ecef",
+                      borderRadius: "8px",
+                      backgroundColor: "white",
+                    }}
+                  >
+                    {timeOptions.map((time) => (
+                      <option key={time} value={time}>
+                        {parseInt(time.split(":")[0]) <= 12
+                          ? `${time} AM`
+                          : `${parseInt(time.split(":")[0]) - 12}:00 PM`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "8px",
+                      color: "#333",
+                      fontWeight: "600",
+                    }}
+                  >
+                    End Time *
+                  </label>
+                  <select
+                    value={adminForm.end_time}
+                    onChange={(e) =>
+                      setAdminForm({ ...adminForm, end_time: e.target.value })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "12px 15px",
+                      fontSize: "1rem",
+                      border: "2px solid #e9ecef",
+                      borderRadius: "8px",
+                      backgroundColor: "white",
+                    }}
+                  >
+                    {timeOptions.map((time, index) => {
+                      const hour = parseInt(time.split(":")[0]);
+                      const startHour = parseInt(
+                        adminForm.start_time.split(":")[0]
+                      );
+                      if (hour > startHour) {
+                        return (
+                          <option key={time} value={time}>
+                            {hour <= 12 ? `${time} AM` : `${hour - 12}:00 PM`}
+                          </option>
+                        );
+                      }
+                      return null;
+                    })}
+                    {/* Add one more hour option after 5 PM for end time */}
+                    <option value="18:00">6:00 PM</option>
+                  </select>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: "#e7f1ff",
+                  padding: "15px",
+                  borderRadius: "8px",
+                  marginTop: "10px",
+                }}
+              >
+                <div style={{ color: "#0056b3", fontSize: "0.9rem" }}>
+                  <strong>Time Range:</strong> {adminForm.start_time} -{" "}
+                  {adminForm.end_time}
+                  <br />
+                  <small>Service hours: 09:00 - 17:00 WIB</small>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "15px",
+                marginTop: "30px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingBooking(null);
+                }}
+                disabled={editLoading}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  opacity: editLoading ? 0.7 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateBooking}
+                disabled={editLoading}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor: "#0070f3",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: editLoading ? "not-allowed" : "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  opacity: editLoading ? 0.7 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                {editLoading ? (
+                  <>
+                    <span>⏳</span>
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <span>✓</span>
+                    Update Booking
                   </>
                 )}
               </button>
@@ -1018,10 +1436,7 @@ export default function Dashboard() {
                         }}
                       >
                         <button
-                          onClick={() => {
-                            // You can implement edit functionality here
-                            alert(`Edit booking: ${booking.ID}`);
-                          }}
+                          onClick={() => handleOpenEditModal(booking)}
                           style={{
                             padding: "8px 15px",
                             backgroundColor: "#0070f3",
