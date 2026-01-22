@@ -681,60 +681,6 @@ export default function Dashboard() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>📅</div>
-          <div
-            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#28a745" }}
-          >
-            {statusCounts.confirmed || 0}
-          </div>
-          <div style={{ color: "#666" }}>Confirmed</div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "white",
-            padding: "20px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>⏳</div>
-          <div
-            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#ffc107" }}
-          >
-            {statusCounts.pending || 0}
-          </div>
-          <div style={{ color: "#666" }}>Pending</div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "white",
-            padding: "20px",
-            borderRadius: "10x",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>❌</div>
-          <div
-            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#dc3545" }}
-          >
-            {statusCounts.cancelled || 0}
-          </div>
-          <div style={{ color: "#666" }}>Cancelled</div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "white",
-            padding: "20px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            textAlign: "center",
-          }}
-        >
           <div style={{ fontSize: "2rem", marginBottom: "10px" }}>👥</div>
           <div
             style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#0070f3" }}
