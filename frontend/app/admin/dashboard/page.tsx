@@ -157,6 +157,14 @@ export default function Dashboard() {
         router.push("/admin/login");
         return;
       }
+      const startHour = parseInt(adminForm.start_time.split(":")[0]);
+      const endHour = parseInt(adminForm.end_time.split(":")[0]);
+
+      if (endHour <= startHour) {
+        alert("End time harus setelah start time");
+        setAdminLoading(false);
+        return;
+      }
 
       const res = await fetch(`${BASE_URL}/booking`, {
         method: "POST",
@@ -414,9 +422,19 @@ export default function Dashboard() {
                   </label>
                   <select
                     value={adminForm.start_time}
-                    onChange={(e) =>
-                      setAdminForm({ ...adminForm, start_time: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      const startHour = parseInt(newStart.split(":")[0]);
+                      const newEnd = `${(startHour + 1)
+                        .toString()
+                        .padStart(2, "0")}:00`;
+
+                      setAdminForm({
+                        ...adminForm,
+                        start_time: newStart,
+                        end_time: newEnd,
+                      });
+                    }}
                     style={{
                       width: "100%",
                       padding: "12px 15px",
@@ -558,8 +576,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      }}
-    >
       {/* Header */}
       <div
         style={{
@@ -619,7 +635,6 @@ export default function Dashboard() {
             New Booking
           </button>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           <div
             style={{
               backgroundColor: "#f8f9fa",
@@ -675,60 +690,6 @@ export default function Dashboard() {
           marginBottom: "30px",
         }}
       >
-        <div
-          style={{
-            backgroundColor: "white",
-            padding: "20px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>📅</div>
-          <div
-            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#28a745" }}
-          >
-            {statusCounts.confirmed || 0}
-          </div>
-          <div style={{ color: "#666" }}>Confirmed</div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "white",
-            padding: "20px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>⏳</div>
-          <div
-            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#ffc107" }}
-          >
-            {statusCounts.pending || 0}
-          </div>
-          <div style={{ color: "#666" }}>Pending</div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "white",
-            padding: "20px",
-            borderRadius: "10x",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "2rem", marginBottom: "10px" }}>❌</div>
-          <div
-            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#dc3545" }}
-          >
-            {statusCounts.cancelled || 0}
-          </div>
-          <div style={{ color: "#666" }}>Cancelled</div>
-        </div>
-
         <div
           style={{
             backgroundColor: "white",
@@ -873,7 +834,6 @@ export default function Dashboard() {
             Bookings ({filteredBookings.length})
           </h3>
           <div style={{ display: "flex", gap: "10px" }}>
-          {filteredBookings.length > 0 && (
             <button
               onClick={() =>
                 fetchBookings(localStorage.getItem("access_token") || "")
@@ -896,11 +856,6 @@ export default function Dashboard() {
               Refresh
             </button>
           </div>
-              }}
-            >
-              ↻ Refresh
-            </button>
-          )}
         </div>
 
         {isLoading ? (
