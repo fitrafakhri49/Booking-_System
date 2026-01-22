@@ -558,6 +558,8 @@ export default function Dashboard() {
         </div>
       )}
 
+      }}
+    >
       {/* Header */}
       <div
         style={{
@@ -617,6 +619,7 @@ export default function Dashboard() {
             New Booking
           </button>
 
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           <div
             style={{
               backgroundColor: "#f8f9fa",
@@ -870,6 +873,7 @@ export default function Dashboard() {
             Bookings ({filteredBookings.length})
           </h3>
           <div style={{ display: "flex", gap: "10px" }}>
+          {filteredBookings.length > 0 && (
             <button
               onClick={() =>
                 fetchBookings(localStorage.getItem("access_token") || "")
@@ -892,6 +896,11 @@ export default function Dashboard() {
               Refresh
             </button>
           </div>
+              }}
+            >
+              ↻ Refresh
+            </button>
+          )}
         </div>
 
         {isLoading ? (
