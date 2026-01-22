@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -20,6 +22,17 @@ interface Booking {
   phone: string;
 }
 
+interface BookingConfirmation {
+  name: string;
+  phone: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  bookingId?: string;
+  bookingTime: string;
+  duration: number; // ✅ TAMBAHAN
+}
+
 export default function BookingPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -28,6 +41,10 @@ export default function BookingPage() {
     name: "",
     phone: "",
   });
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationData, setConfirmationData] =
+    useState<BookingConfirmation | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const timeSlots: TimeSlot[] = Array.from({ length: 9 }, (_, i) => {
     const hour = i + 9;
@@ -116,6 +133,175 @@ export default function BookingPage() {
     };
   };
 
+  const generatePDF = () => {
+    if (!confirmationData) return;
+
+    setIsPrinting(true);
+
+    // Create a temporary div to render the PDF content
+    const pdfContent = document.createElement("div");
+    pdfContent.style.position = "absolute";
+    pdfContent.style.left = "-9999px";
+    pdfContent.style.width = "800px";
+    pdfContent.style.padding = "40px";
+    pdfContent.style.backgroundColor = "white";
+    pdfContent.style.fontFamily = "Arial, sans-serif";
+
+    // Format time
+    const formatTime = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+    };
+
+    // Format date
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    pdfContent.innerHTML = `
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #0070f3; margin: 0; font-size: 32px;">Service Booking Confirmation</h1>
+        <p style="color: #666; margin-top: 10px;">Booking Reference: ${
+          confirmationData.bookingId || "N/A"
+        }</p>
+      </div>
+      
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 15px; margin-bottom: 30px; color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h2 style="margin: 0; font-size: 24px;">${
+              confirmationData.name
+            }</h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">${
+              confirmationData.phone
+            }</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 10px; text-align: center;">
+            <div style="font-size: 14px; opacity: 0.9;">Status</div>
+            <div style="font-size: 18px; font-weight: bold;">CONFIRMED</div>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 20px;">
+          <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px;">
+            <div style="font-size: 14px; opacity: 0.9;">Service Date</div>
+            <div style="font-size: 20px; font-weight: bold;">${formatDate(
+              confirmationData.date
+            )}</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px;">
+            <div style="font-size: 14px; opacity: 0.9;">Service Time</div>
+            <div style="font-size: 20px; font-weight: bold;">${formatTime(
+              confirmationData.start_time
+            )} - ${formatTime(confirmationData.end_time)}</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 25px; border-radius: 10px; margin-bottom: 30px;">
+        <h3 style="color: #333; margin-top: 0; margin-bottom: 15px;">Booking Details</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+          <div>
+            <strong style="color: #666;">Booking Date:</strong>
+            <div>${formatDate(confirmationData.date)}</div>
+          </div>
+          <div>
+            <strong style="color: #666;">Booking Time:</strong>
+            <div>${confirmationData.bookingTime}</div>
+          </div>
+          <div>
+            <strong style="color: #666;">Service Duration:</strong>
+            <div>
+            ${confirmationData.duration} hour${
+      confirmationData.duration > 1 ? "s" : ""
+    }
+          </div>
+          
+          </div>
+          <div>
+            <strong style="color: #666;">Reference ID:</strong>
+            <div>${confirmationData.bookingId || "N/A"}</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="border: 2px dashed #e9ecef; padding: 25px; border-radius: 10px; margin-bottom: 30px;">
+        <h3 style="color: #333; margin-top: 0; margin-bottom: 15px;">Service Information</h3>
+        <ul style="margin: 0; padding-left: 20px; color: #555;">
+          <li>Please arrive 10 minutes before your scheduled time</li>
+          <li>Bring this confirmation with you</li>
+          <li>Contact us if you need to reschedule</li>
+          <li>Cancellations must be made 24 hours in advance</li>
+        </ul>
+      </div>
+      
+      <div style="text-align: center; color: #666; font-size: 14px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+        <p>This is an automated booking confirmation. Please contact us for any changes.</p>
+        <p>Thank you for choosing our service!</p>
+      </div>
+    `;
+
+    document.body.appendChild(pdfContent);
+
+    // Generate PDF
+    setTimeout(() => {
+      html2canvas(pdfContent, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      })
+        .then((canvas) => {
+          const imgData = canvas.toDataURL("image/png");
+          const pdf = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: "a4",
+          });
+
+          const imgWidth = 190;
+          const pageHeight = pdf.internal.pageSize.getHeight();
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          let heightLeft = imgHeight;
+          let position = 10;
+
+          pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+
+          while (heightLeft >= 0) {
+            position = heightLeft - imgHeight + 10;
+            pdf.addPage();
+            pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+          }
+
+          pdf.save(
+            `Booking-Confirmation-${confirmationData.name.replace(
+              /\s+/g,
+              "-"
+            )}-${confirmationData.date}.pdf`
+          );
+
+          // Clean up
+          document.body.removeChild(pdfContent);
+          setIsPrinting(false);
+        })
+        .catch((error) => {
+          console.error("Error generating PDF:", error);
+          alert("Failed to generate PDF. Please try again.");
+          document.body.removeChild(pdfContent);
+          setIsPrinting(false);
+        });
+    }, 500);
+  };
+
   const submitBooking = async () => {
     if (selectedSlots.length === 0) {
       alert("Please select at least one time slot");
@@ -146,7 +332,17 @@ export default function BookingPage() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Booking successful!");
+        // Set confirmation data
+        const confirmation: BookingConfirmation = {
+          ...bookingData,
+          bookingId: data.id || Date.now().toString(),
+          bookingTime: new Date().toLocaleString(),
+          duration: selectedSlots.length, // ✅ SIMPAN DI SINI
+        };
+
+        setConfirmationData(confirmation);
+        setShowConfirmation(true);
+
         // Refresh bookings
         const dateStr = selectedDate.toISOString().split("T")[0];
         const refreshRes = await fetch(`${BASE_URL}/bookings?date=${dateStr}`);
@@ -172,6 +368,14 @@ export default function BookingPage() {
     });
   };
 
+  // Format time for display
+  const formatTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const hours12 = hours % 12 || 12;
+    return `${hours12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+  };
+
   return (
     <main
       style={{
@@ -179,8 +383,271 @@ export default function BookingPage() {
         maxWidth: "800px",
         margin: "0 auto",
         fontFamily: "system-ui, -apple-system, sans-serif",
+        position: "relative",
       }}
     >
+      {/* Booking Confirmation Modal */}
+      {showConfirmation && confirmationData && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "30px",
+              width: "100%",
+              maxWidth: "600px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "25px",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "1.8rem", color: "#333" }}>
+                🎉 Booking Confirmed!
+              </h2>
+              <button
+                onClick={() => setShowConfirmation(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  color: "#666",
+                  padding: "5px",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                padding: "25px",
+                borderRadius: "10px",
+                color: "white",
+                marginBottom: "25px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "15px",
+                }}
+              >
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.5rem" }}>
+                    {confirmationData.name}
+                  </h3>
+                  <p style={{ margin: "5px 0 0 0", opacity: 0.9 }}>
+                    {confirmationData.phone}
+                  </p>
+                </div>
+                <div
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                    padding: "8px 16px",
+                    borderRadius: "20px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  CONFIRMED
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "15px",
+                  marginTop: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    padding: "15px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+                    Service Date
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {formatDate(new Date(confirmationData.date))}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    padding: "15px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+                    Service Time
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      marginTop: "5px",
+                    }}
+                  >
+                    {formatTime(confirmationData.start_time)} -{" "}
+                    {formatTime(confirmationData.end_time)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "#f8f9fa",
+                padding: "20px",
+                borderRadius: "10px",
+                marginBottom: "25px",
+              }}
+            >
+              <h4 style={{ marginTop: 0, color: "#333", marginBottom: "15px" }}>
+                Booking Summary
+              </h4>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "15px",
+                }}
+              >
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Duration
+                  </div>
+                  <div style={{ fontWeight: "600" }}>
+                    {confirmationData.duration} hour
+                    {confirmationData.duration > 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Booked On
+                  </div>
+                  <div style={{ fontWeight: "600" }}>
+                    {confirmationData.bookingTime}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    Reference ID
+                  </div>
+                  <div style={{ fontWeight: "600", fontFamily: "monospace" }}>
+                    {confirmationData.bookingId || "N/A"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "2px dashed #e9ecef",
+                padding: "20px",
+                borderRadius: "10px",
+                marginBottom: "30px",
+              }}
+            >
+              <h4 style={{ marginTop: 0, color: "#333", marginBottom: "10px" }}>
+                Important Notes
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: "20px", color: "#555" }}>
+                <li>Please arrive 10 minutes before your scheduled time</li>
+                <li>Bring your confirmation with you</li>
+                <li>Contact us if you need to reschedule</li>
+                <li>Cancellations must be made 24 hours in advance</li>
+              </ul>
+            </div>
+
+            <div
+              style={{ display: "flex", gap: "15px", justifyContent: "center" }}
+            >
+              <button
+                onClick={() => setShowConfirmation(false)}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                }}
+              >
+                Close
+              </button>
+              <button
+                onClick={generatePDF}
+                disabled={isPrinting}
+                style={{
+                  padding: "12px 25px",
+                  backgroundColor: "#dc3545",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: isPrinting ? "not-allowed" : "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: isPrinting ? 0.7 : 1,
+                }}
+              >
+                {isPrinting ? (
+                  <>
+                    <span>⏳</span>
+                    Generating PDF...
+                  </>
+                ) : (
+                  <>
+                    <span>🖨️</span>
+                    Download PDF
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1
         style={{
           fontSize: "2.5rem",
@@ -288,9 +755,6 @@ export default function BookingPage() {
         >
           {timeSlots.map((slot) => {
             const isSelected = selectedSlots.includes(slot.id);
-            const isConsecutive =
-              selectedSlots.length > 0 &&
-              Math.abs(slot.id - selectedSlots[selectedSlots.length - 1]) === 1;
 
             return (
               <button
