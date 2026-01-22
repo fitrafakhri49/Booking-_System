@@ -9,6 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var WIB *time.Location
+
+func init() {
+	var err error
+	WIB, err = time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		panic(err)
+	}
+}
+
 func CreateBooking(c *gin.Context) {
 	var input struct {
 		Name      string `json:"name" binding:"required"`
@@ -23,116 +33,94 @@ func CreateBooking(c *gin.Context) {
 		return
 	}
 
-	date, err := time.Parse("2006-01-02", input.Date)
+	date, err := time.ParseInLocation("2006-01-02", input.Date, WIB)
 	if err != nil {
 		c.JSON(400, gin.H{"error": "Format tanggal salah"})
 		return
 	}
 
-	startClock, err := time.Parse("15:04", input.StartTime)
-	if err != nil {
-		c.JSON(400, gin.H{"error": "Format start_time salah"})
+	startClock, _ := time.ParseInLocation("15:04", input.StartTime, WIB)
+	endClock, _ := time.ParseInLocation("15:04", input.EndTime, WIB)
+
+	startWIB := time.Date(
+		date.Year(), date.Month(), date.Day(),
+		startClock.Hour(), startClock.Minute(), 0, 0, WIB,
+	)
+
+	endWIB := time.Date(
+		date.Year(), date.Month(), date.Day(),
+		endClock.Hour(), endClock.Minute(), 0, 0, WIB,
+	)
+
+	if !endWIB.After(startWIB) {
+		c.JSON(400, gin.H{"error": "end_time harus setelah start_time"})
 		return
 	}
 
-	endClock, err := time.Parse("15:04", input.EndTime)
-	if err != nil {
-		c.JSON(400, gin.H{"error": "Format end_time salah"})
+	openTime := time.Date(date.Year(), date.Month(), date.Day(), 9, 0, 0, 0, WIB)
+	closeTime := time.Date(date.Year(), date.Month(), date.Day(), 17, 0, 0, 0, WIB)
+
+	if startWIB.Before(openTime) || endWIB.After(closeTime) {
+		c.JSON(400, gin.H{"error": "Booking hanya tersedia 09:00 - 17:00 WIB"})
 		return
 	}
 
-	start := time.Date(
-		date.Year(), date.Month(), date.Day(),
-		startClock.Hour(), startClock.Minute(),
-		0, 0, time.UTC,
-	)
+	// 🔥 CONVERT KE UTC SEBELUM DB
+	startUTC := startWIB.UTC()
+	endUTC := endWIB.UTC()
 
-	end := time.Date(
-		date.Year(), date.Month(), date.Day(),
-		endClock.Hour(), endClock.Minute(),
-		0, 0, time.UTC,
-	)
-
-	// ❌ END HARUS SETELAH START
-	if !end.After(start) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "end_time harus setelah start_time",
-		})
-		return
-	}
-
-	// ⏰ BATAS JAM OPERASIONAL 09:00 - 17:00
-	openTime := time.Date(
-		date.Year(), date.Month(), date.Day(),
-		9, 0, 0, 0, time.UTC,
-	)
-
-	closeTime := time.Date(
-		date.Year(), date.Month(), date.Day(),
-		17, 0, 0, 0, time.UTC,
-	)
-
-	if start.Before(openTime) || end.After(closeTime) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Booking hanya tersedia pukul 09:00 - 17:00",
-		})
-		return
-	}
-
-	// ✅ CEK BENTROK
 	var count int64
 	config.DB.
 		Model(&models.Booking{}).
-		Where("start_time < ? AND end_time > ?", end, start).
+		Where("start_time < ? AND end_time > ?", endUTC, startUTC).
 		Count(&count)
 
 	if count > 0 {
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "Waktu sudah dibooking",
-		})
+		c.JSON(http.StatusConflict, gin.H{"error": "Waktu sudah dibooking"})
 		return
 	}
 
 	booking := models.Booking{
 		Name:      input.Name,
 		Phone:     input.Phone,
-		StartTime: start,
-		EndTime:   end,
+		StartTime: startUTC,
+		EndTime:   endUTC,
 	}
 
 	config.DB.Create(&booking)
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Booking berhasil",
-	})
+	c.JSON(201, gin.H{"message": "Booking berhasil"})
 }
 
 func GetBookingsAdmin(c *gin.Context) {
-	// optional filter tanggal ?date=YYYY-MM-DD
 	dateStr := c.Query("date")
-
 	query := config.DB.Model(&models.Booking{})
 
 	if dateStr != "" {
-		date, err := time.Parse("2006-01-02", dateStr)
+		date, err := time.ParseInLocation("2006-01-02", dateStr, WIB)
 		if err != nil {
 			c.JSON(400, gin.H{"error": "Format date salah"})
 			return
 		}
 
-		start := date
-		end := date.Add(24 * time.Hour)
+		startUTC := date.UTC()
+		endUTC := date.Add(24 * time.Hour).UTC()
 
-		query = query.Where("start_time >= ? AND start_time < ?", start, end)
+		query = query.Where("start_time >= ? AND start_time < ?", startUTC, endUTC)
 	}
 
 	var bookings []models.Booking
-	query.
-		Order("start_time ASC").
-		Find(&bookings)
+	query.Order("start_time ASC").Find(&bookings)
+
+	// 🔥 Convert ke WIB saat response
+	for i := range bookings {
+		bookings[i].StartTime = bookings[i].StartTime.In(WIB)
+		bookings[i].EndTime = bookings[i].EndTime.In(WIB)
+	}
 
 	c.JSON(200, bookings)
 }
+
 func GetBookedTimes(c *gin.Context) {
 	dateStr := c.Query("date")
 	if dateStr == "" {
@@ -140,18 +128,18 @@ func GetBookedTimes(c *gin.Context) {
 		return
 	}
 
-	date, err := time.Parse("2006-01-02", dateStr)
+	date, err := time.ParseInLocation("2006-01-02", dateStr, WIB)
 	if err != nil {
 		c.JSON(400, gin.H{"error": "Format date salah"})
 		return
 	}
 
-	startDay := date
-	endDay := date.Add(24 * time.Hour)
+	startUTC := date.UTC()
+	endUTC := date.Add(24 * time.Hour).UTC()
 
 	type BookedTime struct {
-		StartTime time.Time `json:"start_time"`
-		EndTime   time.Time `json:"end_time"`
+		StartTime time.Time
+		EndTime   time.Time
 	}
 
 	var booked []BookedTime
@@ -159,16 +147,15 @@ func GetBookedTimes(c *gin.Context) {
 	config.DB.
 		Model(&models.Booking{}).
 		Select("start_time, end_time").
-		Where("start_time >= ? AND start_time < ?", startDay, endDay).
+		Where("start_time >= ? AND start_time < ?", startUTC, endUTC).
 		Order("start_time ASC").
 		Scan(&booked)
 
-	// ubah format jam saja (HH:mm)
 	var result []gin.H
 	for _, b := range booked {
 		result = append(result, gin.H{
-			"start_time": b.StartTime.Format("15:04"),
-			"end_time":   b.EndTime.Format("15:04"),
+			"start_time": b.StartTime.In(WIB).Format("15:04"),
+			"end_time":   b.EndTime.In(WIB).Format("15:04"),
 		})
 	}
 
